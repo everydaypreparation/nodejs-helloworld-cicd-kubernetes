@@ -1,39 +1,43 @@
 pipeline{
-  environment {
-    registry = "prakashgolait/node-helloworld"
-    registryCredential = 'dockerhub'
-    dockerImage = ''
-  }
-  agent any
+    agent any
     stages {
-        stage('Build'){
+        stage('Build Maven') {
             steps{
-                script{
-                    sh 'npm install'
+                git credentialsId: 'Prepare', url: 'https://github.com/everydaypreparation/nodejs-helloworld-cicd-kubernetes.git'
+            }
+        }
+        stage('NPM Install') {
+            steps {
+                script {
+                  sh 'npm install'
                 }
             }
         }
-        stage('Building image') {
-            steps{
+        stage('Build Docker Image') {
+            steps {
                 script {
-                  dockerImage = docker.build registry + ":latest"
+                  sh 'docker build -t prakashgolait/node-helloworld .'
                 }
-             }
-          }
-          stage('Push Image') {
-              steps{
-                  script 
-                    {
-                        docker.withRegistry( '', registryCredential ) {
-                            dockerImage.push()
-                        }
-                   } 
-               }
             }
-        stage('Deploying into k8s'){
-            steps{
-                sh 'kubectl apply -f deployment.yml'
+        }
+        stage('Push Docker Image') {
+            steps {
+                script {
+                 withCredentials([string(credentialsId: 'prakashgolait', variable: 'dockerhubpwd')]) {
+                    sh 'docker login -u prakashgolait -p ${dockerhubpwd}'
+                 }  
+                 sh 'docker push prakashgolait/node-helloworld'
+                }
+            }
+        }
+    
+    stage('Deploy App on k8s') {
+      steps {
+            script {
+            kubernetesDeploy(configs: "deployment.yaml", kubeconfigId: "kubernetes")
             }
         }
     }
+    }
+    
 }
